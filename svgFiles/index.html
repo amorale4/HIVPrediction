@@ -1,0 +1,47 @@
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>D3 Visualizing Rotation</title>
+  <meta charset="utf-8" />
+</head>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/colorbrewer.v1.min.js"></script>
+<script src="legend.js"></script>
+<style>
+  body, html {
+    width:100%;
+    height:100%;
+  }
+  #vizcontainer {
+    width:100%;
+    height:100%;
+  }
+  svg {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+<body onload="legendDemo()">
+<div id="vizcontainer">
+<svg id="vizcontainer" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" >
+  <image height="100%" width="100%"  xlink:href="tweet_counts.svg" />
+</svg>
+</div>
+  <footer>
+<script>
+  function legendDemo() {
+  //sampleNumerical = ["0", "0  -  270", "270  -  529", "529  -  788", "788  -  1047", "1047  -  1306", "1306  -  1565", "1565  -  1824", "1824  -  2084"];
+  sampleNumerical = ["0", "0  -  178", "178  -  352", "352  -  526", "526  -  700", "700  -  873", "873  -  1047", "1047  -  1221", "1221  -  1395"];
+  //sampleThreshold=d3.scale.threshold().domain(sampleNumerical).range(colorbrewer.Reds[5]);
+  //horizontalLegend = d3.svg.legend().units("Tweets").cellWidth(44).cellHeight(10).inputScale(sampleThreshold).cellStepping(100);
+  //d3.select("svg").append("g").attr("transform", "translate(20,40)").attr("class", "legend").call(horizontalLegend);
+  //sampleCategoricalData = ["1","0", "Something","Something Else", "Another", "This", "That", "Etc", "1"]
+  //sampleOrdinal = d3.scale.category20().domain(sampleCategoricalData);
+  sampleOrdinal = d3.scale.category20().domain(sampleNumerical).range(["#d0d0d0","#FFF5F0", "#FEE0D2", "#FCBBA1", "#FC9272", "#FB6A4A", "#EF3B2C", "#CB181D", "#99000D"]);
+  verticalLegend = d3.svg.legend().labelFormat("none").cellPadding(5).orientation("vertical").units("Number of Tweets").cellWidth(25).cellHeight(18).inputScale(sampleOrdinal).cellStepping(10);
+  d3.select("svg").append("g").attr("transform", "translate(50,140)").attr("class", "legend").call(verticalLegend);
+  }
+</script>
+  </footer>
+</body>
+</html>
