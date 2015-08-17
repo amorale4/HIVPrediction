@@ -11,6 +11,10 @@ from sklearn import cross_validation
 from sklearn import feature_selection
 from sklearn.feature_selection import chi2
 import argparse
+import csv
+import sys
+csv.field_size_limit(sys.maxsize)
+# processing the data output
 
 #from operator import add;
 seed=1003
@@ -20,7 +24,7 @@ random.seed(seed)
 # Since numbers and such give many unique ''words'' we can specify which to replace
 # currently replacing '#'-hashtags, '@'-usernames, 'U'-url links, 'E'-emoticons, '$'- numeral , ','-punctuations, 'G'-unknown tag
 # we are removing some formating symbols eg. ":" which is tagged to '~'
-
+replaceables = ['@', 'U', '$', ',', 'G']
 removables = ['~']
 def cleanTweet(tweet, tweet_pos):
     tweet_l = tweet.split()
@@ -40,6 +44,7 @@ def cleanTweet(tweet, tweet_pos):
             None
         else:
             clean_tweet.append(item.lower())
+            clean_tweet.append(tweet_pos_l[i])
     
     #print (clean_tweet)
     return clean_tweet
@@ -95,7 +100,25 @@ def conf_mat(Y_hat, Y):
             print (" j should only be 0 or 1, however", j , "was encountered.")
     #print (tp, fp, tn, fn)
     return [tp, fp, tn, fn]
-
+    
+def getHIVRate(filename, state2rate):
+    prefix = filename.split('.')[0]
+    prefix_list = prefix.split('/')[-1].split('_')
+    #print(prefix_list)
+    county = prefix_list[0]
+    state = prefix_list[-2]
+    my_rate = -1
+    if state in state2rate:
+        for county_keys in state2rate[state]:
+            if county in county_keys:
+                #print (county_keys, state2rate[state][county_keys], prefix_list[2])
+                my_rate = int(state2rate[state][county_keys])
+                
+        if my_rate < 0:
+            print ('no such county', county, state)
+    else:
+        print ( 'no such state', state)
+    return my_rate
 
 ## parameters 
 # classification - whether we are using classification or regression
@@ -158,6 +181,10 @@ def main():
 	parser.add_argument('--filter', metavar='N', type=int, default=-1,
 	                   help='specifies how many features to keep after filtering. Filtering keeps the N number of features')
 
+	parser.add_argument('--minTweets', type=int, default=25,
+	                   help='specifies the minimum number of tweets a location should have to consider it in the experiments.')
+
+
 	parser.add_argument('--path2Data', default='cities/',
 	                   help='path to where the tsv files are located. (Default: cities/)')
 
@@ -174,6 +201,26 @@ def main():
 	else:
 		classOrReg = False;
 
+
+	i = 0
+	heading = []
+	state2rate = {}
+	for ll in csv.reader( open("hivRatesData/AIDSVu_County_2012.csv", 'r' )):
+		if i == 0:
+			heading = ll
+		else:
+			county_rate = int(ll[3])
+			if (  county_rate > 0 ): 
+				county_name = ll[2]
+				state_name = ll[1]
+				key = county_name + " " + state_name
+				if state_name in state2rate:
+					state2rate[state_name][county_name] = str(county_rate)
+				else:
+					state2rate[state_name] = {county_name : str(county_rate)}
+		i = i + 1
+
+
 	filenum = 0
 	Vcount=0
 	VVcount=0
@@ -185,17 +232,30 @@ def main():
 	tf={}            # (word, numberOfWords)
 	bitf={}
 	locRates={}      # HIV rates based on locations
-
+	locslessthan = 0
 	N = 0
 	print ("reading files from ", args.path2Data, "...")
 	for file in glob.glob(args.path2Data+'*.tsv'):
-	    filenum = filenum + 1  #serves as an index for the file name
-	    prefix = file.split('.')[0]
-	    locRates[filenum] = int(prefix.split('_')[-1])
-
+	    #Getting the HIV rate 
+	    my_rate = getHIVRate(file, state2rate)
+	    if my_rate < 0:
+	        continue
+	    
 	    lines = []
 	    with open(file, 'r') as f:
 	        lines = f.readlines()
+	    
+	    #Checking if this location has less than a threshold number of tweets
+	    if len(lines) < args.minTweets:
+	        #print(file)
+	        locslessthan = locslessthan + 1
+	        continue
+	        
+	    
+	    filenum = filenum + 1  #serves as an index for the file name
+	    #prefix = file.split('.')[0]
+	    #locRates[filenum] = int(prefix.split('_')[-1])
+	    locRates[filenum] = my_rate
 	    #DEBUG
 	    #print (file + " file num: " + str(filenum) + " num tweets: " + str(len(lines)) )
 
@@ -210,7 +270,7 @@ def main():
 
 	        tweet_features = []
 	        if (args.pos):
-	        	tweet_features = (tweet+tweet_pos).replace(removables[0], '').split()
+	        	tweet_features = cleanTweet(tweet,tweet_pos)
 	        else:
 	        	tweet_features = tweet.split()
 
@@ -236,6 +296,7 @@ def main():
 	N = filenum
 	VocabSize=len(V.keys())
 
+	print ("filtered:", locslessthan, "counties containing less than", args.minTweets, "number of tweets" )
 	#some statistics
 	print ("vocabSize: ", VocabSize)
 	print ("docSize: ", N)
@@ -252,7 +313,7 @@ def main():
 	#should generate both Y for classification and regression?
 	(X,Y) = generateX(classOrReg, args.tfidf, tf, idf, locRates, N, VocabSize)
 
-	if (classification != ''):
+	if (classOrReg):
 		clf = MultinomialNB()
 		y = np.array(Y)
 		K = 5
@@ -273,7 +334,7 @@ def main():
 			#fe_accuracies[ja] = acc/K
 			print (topFE, acc/K)
 
-	elif ( regression != '' ):		
+	elif ( classOrReg ):		
 		clf_v2 = linear_model.ElasticNetCV(l1_ratio=[0.75, 0.80, 0.85, 0.90, 0.95], n_jobs=3, cv=5, alphas=np.array([0.1, 1.0, 10, 100, 1000, 10000, 100000]))
 		clf_v2.fit(X, Yreg)
 		print (clf_v2.alpha_, clf_v2.l1_ratio_)
